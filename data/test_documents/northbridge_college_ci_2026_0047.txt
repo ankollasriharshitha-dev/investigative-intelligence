@@ -1,0 +1,63 @@
+SYNTHETIC TRAINING DOCUMENT — NOT A REAL CASE
+Northbridge College Campus Property & Communication Incident
+
+CASE | CI-2026-0047 | Northbridge College Campus Property & Communication Incident | Open | High | 2026-02-15
+
+Incident summary: Two laptops and one external storage device were reported missing from the Northbridge College AI Laboratory during an equipment-maintenance period. This synthetic document is for development review only.
+
+PERSON | P001 | Arjun Mehta | Student researcher | CI-2026-0047
+PERSON | P002 | Nisha Rao | Lab coordinator | CI-2026-0047
+PERSON | P003 | Karan Shah | Maintenance liaison | CI-2026-0047
+PERSON | P004 | Riya Sen | Campus communications contact | CI-2026-0047
+PERSON | P005 | Vikram Das | Maintenance contractor contact | CI-2026-0047
+PERSON | P006 | Sameer Khan | Transport contact | CI-2026-0047
+
+PHONE | PH001 | +91-90000-10001 | P001 | CI-2026-0047
+PHONE | PH002 | +91-90000-10002 | P002 | CI-2026-0047
+PHONE | PH003 | +91-90000-10003 | P003 | CI-2026-0047
+PHONE | PH004 | +91-90000-10004 | P004 | CI-2026-0047
+PHONE | PH005 | +91-90000-10005 | P005 | CI-2026-0047
+PHONE | PH006 | +91-90000-10006 | P006 | CI-2026-0047
+
+LOCATION | LOC001 | Northbridge College AI Laboratory | 17.4486 | 78.3908
+LOCATION | LOC002 | Northbridge College Main Gate | 17.4492 | 78.3915
+LOCATION | LOC003 | City Library Junction | 17.4300 | 78.4070
+LOCATION | LOC004 | Metro Tech Park | 17.4700 | 78.3650
+LOCATION | LOC005 | Riverside Café | 17.4200 | 78.4200
+
+VEHICLE | V001 | TS09AB1201 | P005 | CI-2026-0047
+VEHICLE | V002 | TS09CD3402 | P006 | CI-2026-0047
+VEHICLE | V003 | TS09EF5603 | P003 | CI-2026-0047
+
+ORGANIZATION | ORG001 | Northbridge College of Technology | Education | CI-2026-0047
+ORGANIZATION | ORG002 | Metro Technical Services | Equipment maintenance | CI-2026-0047
+ORGANIZATION | ORG003 | Campus Innovation Club | Student organization | CI-2026-0047
+
+ACCOUNT | ACC001 | College Research Account | P001 | ORG001 | CI-2026-0047
+ACCOUNT | ACC002 | Campus Services Account | P003 | ORG001 | CI-2026-0047
+ACCOUNT | ACC003 | Maintenance Vendor Account | P005 | ORG002 | CI-2026-0047
+
+CALL | CALL001 | PH003 | PH005 | 2026-02-12T08:15:00 | 0.94 | CI-2026-0047
+CALL | CALL002 | PH005 | PH003 | 2026-02-12T08:42:00 | 0.93 | CI-2026-0047
+CALL | CALL003 | PH001 | PH004 | 2026-02-13T09:10:00 | 0.91 | CI-2026-0047
+CALL | CALL004 | PH004 | PH006 | 2026-02-13T11:35:00 | 0.90 | CI-2026-0047
+CALL | CALL005 | PH002 | PH003 | 2026-02-14T15:05:00 | 0.92 | CI-2026-0047
+
+MESSAGE | MSG001 | PH003 | PH005 | 2026-02-12T08:20:00 | 0.92 | CI-2026-0047
+MESSAGE | MSG002 | PH005 | PH003 | 2026-02-12T08:45:00 | 0.91 | CI-2026-0047
+MESSAGE | MSG003 | PH002 | PH003 | 2026-02-14T15:10:00 | 0.93 | CI-2026-0047
+
+TRANSACTION | TXN001 | ACC003 | ACC002 | 18500 | 2026-02-14T16:45:00 | 0.88 | CI-2026-0047
+
+EVENT | EVT001 | P001 | LOCATED_AT | LOC001 |  |  | 2026-02-12T07:50:00 | CI-2026-0047 | 0.90
+EVENT | EVT002 | P002 | LOCATED_AT | LOC001 |  |  | 2026-02-12T08:00:00 | CI-2026-0047 | 0.91
+EVENT | EVT003 | P003 | LOCATED_AT | LOC001 |  |  | 2026-02-12T08:05:00 | CI-2026-0047 | 0.92
+EVENT | EVT004 | P004 | VISITED | LOC003 |  |  | 2026-02-13T10:45:00 | CI-2026-0047 | 0.86
+EVENT | EVT005 | P006 | VISITED | LOC003 |  |  | 2026-02-13T11:15:00 | CI-2026-0047 | 0.85
+EVENT | EVT006 | P005 | USED |  | V001 |  | 2026-02-12T09:00:00 | CI-2026-0047 | 0.89
+EVENT | EVT007 | P003 | USED |  | V003 |  | 2026-02-12T09:05:00 | CI-2026-0047 | 0.88
+EVENT | EVT008 | P005 | WORKS_FOR |  |  | ORG002 | 2026-02-12T08:30:00 | CI-2026-0047 | 0.87
+EVENT | EVT009 | P001 | WORKS_FOR |  |  | ORG003 | 2026-02-12T07:45:00 | CI-2026-0047 | 0.82
+
+Potential investigative lead: repeated maintenance communication requires verification.
+Verification checklist: review laboratory access records, confirm equipment inventory, and verify communication timestamps.

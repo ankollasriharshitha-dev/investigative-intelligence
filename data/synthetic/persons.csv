@@ -1,0 +1,19 @@
+person_id,name,role,case_ids
+P001,Arun Vale,Network coordinator,CASE001|CASE002
+P002,Meera Dutt,Operations liaison,CASE001
+P003,Rohan Sen,Logistics contact,CASE001|CASE003
+P004,Nisha Rao,Financial intermediary,CASE001|CASE002
+P005,Kabir Shah,Vehicle coordinator,CASE002
+P006,Tara Iyer,Communications contact,CASE002
+P007,Vikram Noor,Organization liaison,CASE002|CASE003
+P008,Leela Bose,Records analyst,CASE003
+P009,Dev Malhotra,Field contact,CASE001
+P010,Anika Suri,Accounts contact,CASE001|CASE003
+P011,Sameer Gill,Transport contact,CASE002
+P012,Ira Menon,Site manager,CASE003
+P013,Neil Varma,Vendor contact,CASE003
+P014,Diya Kapoor,Event contact,CASE001
+P015,Omkar Joshi,Technical contact,CASE002
+P016,Sana Mir,Community liaison,CASE003
+P017,Adil Khan,Independent witness,CASE001|CASE003
+P018,Reva Nair,Compliance contact,CASE002

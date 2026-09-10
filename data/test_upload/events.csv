@@ -1,0 +1,4 @@
+event_id,person_id,event_type,location_id,vehicle_id,organization_id,timestamp,case_id,source,confidence
+TE901,P901,LOCATED_AT,LOC901,,,2026-02-01T08:00:00,CASE901,TEST,0.90
+TE902,P905,USED,,V901,,2026-02-01T08:30:00,CASE901,TEST,0.90
+TE903,P901,WORKS_FOR,,,ORG901,2026-02-01T08:45:00,CASE901,TEST,0.90

@@ -1,0 +1,5 @@
+organization_id,name,sector,case_ids
+ORG001,Northstar Logistics,Freight coordination,CASE001|CASE002
+ORG002,Blue Meridian Trading,Wholesale commerce,CASE001|CASE003
+ORG003,Vertex Civic Forum,Community services,CASE002|CASE003
+ORG004,Redwood Technical Works,Equipment services,CASE002

@@ -1,0 +1,6 @@
+person_id,name,role,case_ids
+P901,Test Alpha,Coordinator,CASE901
+P902,Test Beta,Contact,CASE901
+P903,Test Gamma,Observer,CASE901
+P904,Test Delta,Analyst,CASE901
+P905,Test Echo,Driver,CASE901

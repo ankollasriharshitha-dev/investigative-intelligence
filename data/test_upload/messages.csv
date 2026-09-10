@@ -1,0 +1,2 @@
+message_id,sender_phone_id,receiver_phone_id,timestamp,case_id,source,confidence
+TM901,PH901,PH903,2026-02-01T12:00:00,CASE901,TEST,0.90

@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.streamlit/secrets.toml
+
+# Uploaded investigation data is runtime input, not source-controlled application data.
+data/uploads/
