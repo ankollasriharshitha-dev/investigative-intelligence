@@ -107,6 +107,8 @@ class InvestigativeAnalytics:
     def leads(self) -> list[InvestigativeLead]:
         leads: list[InvestigativeLead] = []
         for row in self.centrality()[:8]:
+            if row["entity_type"] in {"CASE", "EVIDENCE", "EVENT"}:
+                continue
             if row["network_significance"] < 0.15:
                 continue
             bridge = row["betweenness"] >= 0.05

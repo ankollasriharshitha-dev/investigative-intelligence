@@ -74,6 +74,12 @@ Uploaded dataset metadata is tracked in `data/uploads/dataset_metadata.json` wit
 
 Security boundaries, authentication, authorization, encryption, retention policy, production audit controls, database persistence, Neo4j, and backend API deployment remain future production work.
 
+## Local Phase-2 prototype
+
+The application now includes a local, file-backed Phase-2 workflow under `data/runtime/` (ignored by Git): PBKDF2 password verification, mandatory RFC-compatible TOTP MFA, role-based authorization, local case records, evidence storage, SHA-256 hashing, document processing, practical rule-based entity extraction/normalization, cross-case match explanations, audit logging, and a tamper-evident chained evidence ledger. This is a demonstration prototype, not a production security deployment.
+
+No PostgreSQL connection or dependency is used. Optional local OCR for image/scanned PDF evidence uses `pytesseract`, `Pillow`, and `PyMuPDF`; the native Tesseract executable must also be installed and on `PATH`. If it is not available, the UI reports that OCR could not be performed instead of inventing results.
+
 ## SIH demo readiness
 
 Recommended demonstration flow:

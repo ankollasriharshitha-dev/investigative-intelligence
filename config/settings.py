@@ -12,6 +12,7 @@ class Settings:
     project_root: Path
     synthetic_data_dir: Path
     uploads_data_dir: Path
+    runtime_data_dir: Path | None = None
 
 
 def get_settings() -> Settings:
@@ -19,4 +20,5 @@ def get_settings() -> Settings:
         project_root=PROJECT_ROOT,
         synthetic_data_dir=PROJECT_ROOT / "data" / "synthetic",
         uploads_data_dir=PROJECT_ROOT / "data" / "uploads",
+        runtime_data_dir=PROJECT_ROOT / "data" / "runtime",
     )

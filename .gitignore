@@ -6,3 +6,4 @@ __pycache__/
 
 # Uploaded investigation data is runtime input, not source-controlled application data.
 data/uploads/
+data/runtime/
