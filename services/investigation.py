@@ -1,10 +1,12 @@
-"""Application service boundary for investigation workflows."""
+from pathlib import Path
+import pandas as pd
 
 from domain.models import DataSourceInfo, DatasetSnapshot, ValidationResult
 from graph.analytics import GraphAnalytics
 from graph.investigative import InvestigativeAnalytics
 from graph.provider import GraphProvider, NetworkXGraphProvider
 from providers.base import DataProvider
+from providers.postgres import PostgresDataProvider
 from services.data_management import DataManagementService, DatasetStorageError
 from services.document_ingestion import DocumentIngestionService, ExtractedDocument
 from services.audit import AuditService
@@ -18,13 +20,46 @@ class InvestigationService:
     def __init__(self, provider: DataProvider, settings=None, graph_provider: GraphProvider | None = None) -> None:
         self.provider = provider
         self._settings = settings
-        self._data_management = DataManagementService(settings) if settings else None
         self._graph_provider = graph_provider or NetworkXGraphProvider()
-        runtime = settings.runtime_data_dir if settings and settings.runtime_data_dir else None
-        self.audit = AuditService(runtime / "audit.json") if runtime else None
-        self.security = AuthenticationService(runtime / "users.json", self.audit) if runtime and self.audit else None
-        self.cases = CaseManagementService(runtime / "cases.json", self.audit) if runtime and self.audit else None
-        self.evidence = EvidenceService(runtime / "evidence", self.audit) if runtime and self.audit else None
+
+        is_postgres = (
+            (settings and getattr(settings, "data_provider", "") in ("postgres", "database") and getattr(settings, "database_url", None))
+            or isinstance(provider, PostgresDataProvider)
+        )
+
+        if is_postgres:
+            from database.connection import get_engine, get_session_factory
+            from repositories.postgres import (
+                PostgresAuditService,
+                PostgresAuthenticationService,
+                PostgresCaseManagementService,
+                PostgresDatasetRepository,
+                PostgresEvidenceService,
+            )
+            db_url = getattr(settings, "database_url", None) if settings else None
+            engine = provider.engine if isinstance(provider, PostgresDataProvider) else get_engine(db_url)
+            session_factory = get_session_factory(engine)
+            evidence_root = (
+                (settings.runtime_data_dir / "evidence")
+                if (settings and getattr(settings, "runtime_data_dir", None))
+                else (settings.project_root / "data" / "evidence")
+                if settings
+                else Path("data/runtime/evidence")
+            )
+
+            self.audit = PostgresAuditService(session_factory)
+            self.security = PostgresAuthenticationService(session_factory, self.audit)
+            self.cases = PostgresCaseManagementService(session_factory, self.audit)
+            self.evidence = PostgresEvidenceService(evidence_root, session_factory, self.audit)
+            repo = PostgresDatasetRepository(engine)
+            self._data_management = DataManagementService(settings, repository=repo) if settings else None
+        else:
+            self._data_management = DataManagementService(settings) if settings else None
+            runtime = settings.runtime_data_dir if settings and getattr(settings, "runtime_data_dir", None) else None
+            self.audit = AuditService(runtime / "audit.json") if runtime else None
+            self.security = AuthenticationService(runtime / "users.json", self.audit) if runtime and self.audit else None
+            self.cases = CaseManagementService(runtime / "cases.json", self.audit) if runtime and self.audit else None
+            self.evidence = EvidenceService(runtime / "evidence", self.audit) if runtime and self.audit else None
 
     @property
     def data_management(self) -> DataManagementService | None:
@@ -50,7 +85,8 @@ class InvestigationService:
         graph = self._graph_provider.build(self.load_active_dataset())
         if self.evidence and self.cases:
             for case in self.cases.cases():
-                graph.add_node(case["case_id"], entity_type="CASE", label=case["title"], **case)
+                if case["case_id"] not in graph:
+                    graph.add_node(case["case_id"], entity_type="CASE", label=case["title"], **case)
             for record in self.evidence.records():
                 evidence_id = record["evidence_id"]
                 graph.add_node(evidence_id, entity_type="EVIDENCE", label=record["filename"], **record)
@@ -118,8 +154,12 @@ class InvestigationService:
     def dashboard_statistics(self) -> dict[str, int]:
         """Return counts from the active snapshot for presentation layers."""
         snapshot = self.load_active_dataset()
+        additional_cases = 0
+        if self.cases:
+            snapshot_case_ids = {c.get("case_id") for c in snapshot.documents.get("cases", [])}
+            additional_cases = sum(1 for c in self.cases.cases() if c.get("case_id") not in snapshot_case_ids)
         return {
-            "cases": len(snapshot.documents.get("cases", [])) + (len(self.cases.cases()) if self.cases else 0),
+            "cases": len(snapshot.documents.get("cases", [])) + additional_cases,
             "persons": len(snapshot.tables.get("persons", [])),
             "phones": len(snapshot.tables.get("phones", [])),
             "vehicles": len(snapshot.tables.get("vehicles", [])),
