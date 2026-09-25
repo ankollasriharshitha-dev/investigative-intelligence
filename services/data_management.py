@@ -35,9 +35,13 @@ class DatasetStorageError(RuntimeError):
     """Raised when an uploaded dataset cannot be safely removed or replaced."""
 
 
+from repositories.base import DatasetRepository
+
+
 class DataManagementService:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, repository: DatasetRepository | None = None) -> None:
         self.settings = settings
+        self.repository = repository
         self.uploads_dir = settings.uploads_data_dir
         self.current_dir = self.uploads_dir / CURRENT_DIR
         self.state_path = self.uploads_dir / STATE_FILE
@@ -106,7 +110,16 @@ class DataManagementService:
             return ImportReport(operation, 0, 0, 0, 0, 0, normalized_validation)
         incoming = UploadedDataProvider(staging).load_snapshot()
         received = _snapshot_record_count(incoming)
-        if operation == "replace" or not self.current_dir.exists():
+        if self.repository is not None:
+            added, updated, skipped = self.repository.upsert(incoming, operation)
+            try:
+                if operation == "replace" or not self.current_dir.exists():
+                    self._store_directory(staging)
+                else:
+                    self._merge_current(incoming, operation)
+            except Exception:
+                pass
+        elif operation == "replace" or not self.current_dir.exists():
             added, updated, skipped = received, 0, 0
             self._store_directory(staging)
         else:
@@ -116,9 +129,10 @@ class DataManagementService:
         previous_metadata = self._read_metadata()
         version = int(previous_metadata.get("version", 0)) + 1
         dataset_id = str(previous_metadata.get("dataset_id", f"upload-{uuid.uuid4().hex[:10]}"))
-        self._write_metadata({"dataset_id": dataset_id, "source": "uploaded", "version": version, "created_at": previous_metadata.get("created_at", imported_at), "updated_at": imported_at, "record_count": _snapshot_record_count(UploadedDataProvider(self.current_dir).load_snapshot()), "status": "staged", "validation_status": "Validated"})
+        record_count = _snapshot_record_count(self.repository.load_snapshot()) if self.repository is not None else _snapshot_record_count(UploadedDataProvider(self.current_dir).load_snapshot())
+        self._write_metadata({"dataset_id": dataset_id, "source": "uploaded" if self.repository is None else "postgres", "version": version, "created_at": previous_metadata.get("created_at", imported_at), "updated_at": imported_at, "record_count": record_count, "status": "staged", "validation_status": "Validated"})
         self._write_pending({"ingestion_id": ingestion_id, "imported_at": imported_at, "operation": operation, "records": received, "version": version})
-        self._append_history({"ingestion_id": ingestion_id, "dataset": dataset_id, "source": "uploaded", "timestamp": imported_at, "records_received": received, "records_added": added, "records_updated": updated, "records_rejected": 0, "operation": operation.upper(), "status": "staged", "version": version})
+        self._append_history({"ingestion_id": ingestion_id, "dataset": dataset_id, "source": "uploaded" if self.repository is None else "postgres", "timestamp": imported_at, "records_received": received, "records_added": added, "records_updated": updated, "records_rejected": 0, "operation": operation.upper(), "status": "staged", "version": version})
         return ImportReport(operation, received, added, updated, skipped, 0, validation, imported_at, ingestion_id, version)
 
     def activate_uploaded(self) -> bool:

@@ -26,9 +26,14 @@ def render_application(service: InvestigationService) -> None:
     st.sidebar.markdown("## INVESTIGATIVE INTELLIGENCE")
     st.sidebar.caption("Decision-support workspace · SIH 2026")
     page = st.sidebar.radio("Workspace", MODULES, label_visibility="collapsed")
-    st.sidebar.divider()
     st.sidebar.caption("ACTIVE DATA SOURCE")
-    st.sidebar.info("Uploaded investigation dataset" if source.source_type.value == "uploaded_investigation" else "Synthetic demo dataset")
+    if source.source_type.value == "database":
+        source_label = "PostgreSQL investigation database"
+    elif source.source_type.value == "uploaded_investigation":
+        source_label = "Uploaded investigation dataset"
+    else:
+        source_label = "Synthetic demo dataset"
+    st.sidebar.info(source_label)
     st.sidebar.caption(f"Provider: {source.source_type.value}")
     st.sidebar.caption(f"SIGNED IN: {user.username} · {user.role}")
     if st.sidebar.button("Logout", use_container_width=True):
@@ -130,13 +135,21 @@ def _header(eyebrow: str, title: str, caption: str) -> None:
 def _case_rows(service: InvestigationService) -> list[dict]:
     snapshot, graph = service.load_active_dataset(), service.build_active_graph()
     rows = []
+    seen_case_ids = set()
     for case in snapshot.documents.get("cases", []):
         cid = case.get("case_id", "Unknown")
+        seen_case_ids.add(cid)
         members = list(graph.neighbors(cid)) if cid in graph else []
-        rows.append({"Case ID": cid, "Case title": case.get("title", "Untitled case"), "Status": case.get("status", "Open"), "Date": case.get("opened_date", "Not recorded"), "Evidence files": graph.degree(cid) if cid in graph else 0, "Entities": len(members), "Potential connections": sum(graph.degree(node) for node in members) // 2 if members else 0, "Priority": case.get("priority", "Not recorded")})
+        evidence_count = len(service.evidence.for_case(cid)) if service.evidence else (graph.degree(cid) if cid in graph else 0)
+        entities_count = len([x for x in service.cases.entity_records() if x["case_id"] == cid]) if service.cases else len(members)
+        connections_count = len(service.cases.matches_for_case(cid)) if service.cases else (sum(graph.degree(node) for node in members) // 2 if members else 0)
+        rows.append({"Case ID": cid, "Case title": case.get("title", "Untitled case"), "Status": case.get("status", "Open"), "Date": case.get("opened_date", "Not recorded"), "Evidence files": evidence_count, "Entities": entities_count, "Potential connections": connections_count, "Priority": case.get("priority", "Not recorded")})
     if service.cases and service.evidence:
         for case in service.cases.cases():
             cid = case["case_id"]
+            if cid in seen_case_ids:
+                continue
+            seen_case_ids.add(cid)
             rows.append({"Case ID": cid, "Case title": case["title"], "Status": case["status"], "Date": case["opened_date"], "Evidence files": len(service.evidence.for_case(cid)), "Entities": len([x for x in service.cases.entity_records() if x["case_id"] == cid]), "Potential connections": len(service.cases.matches_for_case(cid)), "Priority": case["priority"]})
     return rows
 
@@ -363,13 +376,14 @@ def _audit(service: InvestigationService, user: User) -> None:
 
 
 def _system_information(service: InvestigationService, user: User) -> None:
-    _header("PLATFORM FOUNDATION", "System Information", "Current local Phase-2 prototype capabilities and security configuration.")
+    _header("PLATFORM FOUNDATION", "System Information", "Platform foundation, backend persistence, and security configuration.")
     source = service.active_source()
-    for col, (name, value) in zip(st.columns(3), (("Active provider", source.name), ("Source type", source.source_type.value), ("Backend integration", "Local Phase 2"))): col.metric(name.upper(), value)
+    backend_label = "PostgreSQL (SQLAlchemy)" if source.source_type.value == "database" else "Local Prototype"
+    for col, (name, value) in zip(st.columns(3), (("Active provider", source.name), ("Source type", source.source_type.value), ("Backend integration", backend_label))): col.metric(name.upper(), value)
     st.info("This is investigative decision-support software. Potential connections and leads require investigator verification and do not determine guilt.")
     st.subheader("Current architecture")
-    st.code("Streamlit frontend\n  ↓\nInvestigation services\n  ↓\nActive data provider\n  ↓\nSynthetic or uploaded dataset\n  ↓\nNetwork graph and explainable analytics", language="text")
-    st.caption("Current: local persistence, MFA, audit logging, SHA-256 verification, graph integration, and a tamper-evident ledger. PostgreSQL is intentionally not connected.")
+    st.code("Streamlit frontend\n  ↓\nInvestigation services\n  ↓\nActive DataProvider / Repository layer\n  ↓\nPostgreSQL or local datasets\n  ↓\nNetwork graph and explainable analytics", language="text")
+    st.caption("Capabilities: PostgreSQL persistence, local fallback, MFA, audit logging, SHA-256 verification, graph analytics, and tamper-evident ledger.")
 
 
 def _structured_upload(service: InvestigationService) -> None:
