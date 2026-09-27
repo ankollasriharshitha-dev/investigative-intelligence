@@ -9,6 +9,7 @@ from services.data_management import DataManagementService, DatasetStorageError
 from services.document_ingestion import DocumentIngestionService, ExtractedDocument
 from services.audit import AuditService
 from services.case_management import CaseManagementService
+from services.document_management import DocumentManagementService
 from services.evidence import EvidenceService
 from services.entity_intelligence import normalize
 from services.security import AuthenticationService, User
@@ -25,6 +26,7 @@ class InvestigationService:
         self.security = AuthenticationService(runtime / "users.json", self.audit) if runtime and self.audit else None
         self.cases = CaseManagementService(runtime / "cases.json", self.audit) if runtime and self.audit else None
         self.evidence = EvidenceService(runtime / "evidence", self.audit) if runtime and self.audit else None
+        self.documents = DocumentManagementService(runtime / "documents", self.audit, self.evidence) if runtime and self.audit else None
 
     @property
     def data_management(self) -> DataManagementService | None:
@@ -56,6 +58,13 @@ class InvestigationService:
                 graph.add_node(evidence_id, entity_type="EVIDENCE", label=record["filename"], **record)
                 if record["case_id"] in graph:
                     graph.add_edge(evidence_id, record["case_id"], relationship_type="APPEARS_IN", relationship_types=["APPEARS_IN"])
+            if self.documents:
+                for doc in self.documents.documents():
+                    doc_id = doc["document_id"]
+                    if doc_id not in graph:
+                        graph.add_node(doc_id, entity_type="DOCUMENT", label=doc.get("title") or doc["filename"], **doc)
+                        if doc.get("case_id") in graph:
+                            graph.add_edge(doc_id, doc["case_id"], relationship_type="ATTACHED_TO", relationship_types=["ATTACHED_TO"])
             for entity in self.cases.entity_records():
                 node_id = f"{entity['type'].upper()}:{entity['normalized']}"
                 graph.add_node(node_id, entity_type=entity["type"].upper(), label=entity["value"], normalized=entity["normalized"])
@@ -137,10 +146,31 @@ class InvestigationService:
             return
         self.security.require(user, permission)
 
-    def create_case(self, case_id: str, title: str, description: str, date: str, priority: str, user: User) -> dict:
+    def create_case(
+        self,
+        case_id: str,
+        title: str,
+        description: str,
+        date: str,
+        priority: str,
+        user: User,
+        department: str = "General Investigation Division",
+        investigating_officer: str = "",
+        assigned_users: list[str] | None = None,
+    ) -> dict:
         self.require_permission(user, "case:create")
         if not self.cases: raise RuntimeError("Local case persistence is unavailable.")
-        return self.cases.create(case_id, title, description, date, priority, user.username)
+        return self.cases.create(
+            case_id,
+            title,
+            description,
+            date,
+            priority,
+            user.username,
+            department=department,
+            investigating_officer=investigating_officer,
+            assigned_users=assigned_users,
+        )
 
     def upload_evidence(self, case_id: str, filename: str, content: bytes, user: User) -> dict:
         self.require_permission(user, "evidence:upload")
@@ -152,16 +182,115 @@ class InvestigationService:
         evidence["potential_matches"] = matches
         self.evidence.update_analysis(evidence["evidence_id"], entities, matches)
         self.audit.record(user.username, "ENTITY_ANALYSIS", evidence["evidence_id"], "Success", {"entities": len(entities), "matches": len(matches)})
+        if self.documents:
+            self.documents._sync_legacy_evidence()
         return evidence
+
+    def upload_document(
+        self,
+        case_id: str,
+        filename: str,
+        content: bytes,
+        user: User,
+        document_type: str = "Investigation Record",
+        title: str = "",
+        department: str = "General Investigation",
+        classification: str = "Restricted",
+        description: str = "",
+        status: str = "Submitted",
+    ) -> dict:
+        self.require_permission(user, "document:upload")
+        if not self.documents: raise RuntimeError("Document storage service is unavailable.")
+        doc = self.documents.upload_document(
+            case_id=case_id,
+            filename=filename,
+            content=content,
+            user=user.username,
+            document_type=document_type,
+            title=title,
+            department=department,
+            classification=classification,
+            description=description,
+            status=status,
+        )
+        if self.cases:
+            entities = self.cases.evidence_entities({
+                "extracted_text": doc.get("extracted_text", ""),
+                "entities": doc.get("entities", {}),
+                "evidence_id": doc["document_id"],
+                "case_id": case_id,
+            })
+            doc["detected_entities"] = entities
+            matches = self.cases.matches(case_id, entities, self._synthetic_entity_records())
+            doc["potential_matches"] = matches
+        return doc
+
+    def upload_document_version(
+        self,
+        document_id: str,
+        filename: str,
+        content: bytes,
+        user: User,
+        change_summary: str = "",
+    ) -> dict:
+        self.require_permission(user, "document:edit")
+        if not self.documents: raise RuntimeError("Document storage service is unavailable.")
+        return self.documents.upload_version(document_id, filename, content, user.username, change_summary)
+
+    def verify_document_integrity(self, document_id: str, user: User, version_number: int | None = None) -> dict:
+        self.require_permission(user, "integrity:verify")
+        if not self.documents: raise RuntimeError("Document storage service is unavailable.")
+        return self.documents.verify_integrity(document_id, user.username, version_number)
+
+    def update_document_status(self, document_id: str, new_status: str, user: User, notes: str = "") -> dict:
+        self.require_permission(user, "document:review")
+        if not self.documents: raise RuntimeError("Document storage service is unavailable.")
+        return self.documents.update_status(document_id, new_status, user.username, role=user.role, notes=notes)
+
+    def share_document(self, document_id: str, target: str, permission: str, user: User, notes: str = "") -> dict:
+        self.require_permission(user, "document:share")
+        if not self.documents: raise RuntimeError("Document storage service is unavailable.")
+        return self.documents.share_document(document_id, target, permission, user.username, notes)
+
+    def search_documents(self, **kwargs) -> list[dict]:
+        if not self.documents: return []
+        return self.documents.search_documents(**kwargs)
+
+    def document_statistics(self) -> dict[str, int]:
+        docs = self.documents.documents() if self.documents else []
+        verified = sum(1 for d in docs if d.get("integrity_status") == "VERIFIED")
+        mismatch = sum(1 for d in docs if d.get("integrity_status") == "INTEGRITY MISMATCH")
+        pending_review = sum(1 for d in docs if d.get("status") in {"Draft", "Submitted", "Under Review"})
+        return {
+            "total_documents": len(docs),
+            "verified_documents": verified,
+            "integrity_alerts": mismatch,
+            "pending_review": pending_review,
+        }
+
+    def simulate_document_tampering(self, document_id: str, user: User) -> dict:
+        self.require_permission(user, "integrity:verify")
+        if not self.documents: raise RuntimeError("Document storage service is unavailable.")
+        return self.documents.simulate_tampering(document_id, user.username)
+
+    def restore_document_tampering(self, document_id: str, user: User) -> dict:
+        self.require_permission(user, "integrity:verify")
+        if not self.documents: raise RuntimeError("Document storage service is unavailable.")
+        return self.documents.restore_tampering(document_id, user.username)
 
     def verify_evidence(self, evidence_id: str, user: User) -> dict:
         self.require_permission(user, "evidence:verify")
         if not self.evidence: raise RuntimeError("Local evidence persistence is unavailable.")
-        return self.evidence.verify(evidence_id, user.username)
+        res = self.evidence.verify(evidence_id, user.username)
+        if self.documents and self.documents.get_document(evidence_id):
+            self.documents.verify_integrity(evidence_id, user.username)
+        return res
 
     def verify_ledger(self, user: User) -> dict:
         self.require_permission(user, "evidence:verify")
         if not self.evidence: raise RuntimeError("Local evidence persistence is unavailable.")
+        if self.documents:
+            self.documents.verify_ledger(user.username)
         return self.evidence.verify_ledger(user.username)
 
     def _synthetic_entity_records(self) -> list[dict]:

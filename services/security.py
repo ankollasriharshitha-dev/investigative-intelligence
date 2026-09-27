@@ -15,13 +15,44 @@ from typing import Any
 from services.audit import AuditService
 
 
-ROLES = ("Investigator", "Senior Officer", "Forensic Officer", "Administrator")
+ALL_ROLES = {
+    "Investigator", "INVESTIGATING_OFFICER", "Investigating Officer",
+    "Senior Officer", "Forensic Officer",
+    "Administrator", "ADMIN",
+    "Legal Officer", "LEGAL_OFFICER",
+    "Reviewer", "REVIEWER",
+    "Auditor", "AUDITOR",
+}
+
+ROLES = (
+    "Investigating Officer",
+    "Legal Officer",
+    "Reviewer",
+    "Auditor",
+    "Administrator",
+    "Forensic Officer",
+    "Senior Officer",
+    "Investigator",
+)
+
 PERMISSIONS = {
-    "case:create": {"Investigator", "Senior Officer", "Administrator"},
-    "case:view": set(ROLES), "evidence:upload": {"Investigator", "Senior Officer", "Forensic Officer", "Administrator"},
-    "evidence:verify": {"Senior Officer", "Forensic Officer", "Administrator"},
-    "analysis:view": {"Investigator", "Senior Officer", "Forensic Officer", "Administrator"},
-    "audit:view": {"Administrator"}, "users:manage": {"Administrator"}, "security:configure": {"Administrator"},
+    "case:create": {"Investigator", "INVESTIGATING_OFFICER", "Investigating Officer", "Senior Officer", "Administrator", "ADMIN"},
+    "case:view": set(ALL_ROLES),
+    "case:edit": {"Investigator", "INVESTIGATING_OFFICER", "Investigating Officer", "Senior Officer", "Administrator", "ADMIN"},
+    "document:upload": {"Investigator", "INVESTIGATING_OFFICER", "Investigating Officer", "Senior Officer", "Forensic Officer", "Administrator", "ADMIN"},
+    "document:view": set(ALL_ROLES),
+    "document:download": {"Investigator", "INVESTIGATING_OFFICER", "Investigating Officer", "Senior Officer", "Forensic Officer", "Legal Officer", "LEGAL_OFFICER", "Reviewer", "REVIEWER", "Auditor", "AUDITOR", "Administrator", "ADMIN"},
+    "document:edit": {"Investigator", "INVESTIGATING_OFFICER", "Investigating Officer", "Senior Officer", "Administrator", "ADMIN"},
+    "document:share": {"Investigator", "INVESTIGATING_OFFICER", "Investigating Officer", "Senior Officer", "Legal Officer", "LEGAL_OFFICER", "Administrator", "ADMIN"},
+    "document:approve": {"Reviewer", "REVIEWER", "Legal Officer", "LEGAL_OFFICER", "Senior Officer", "Administrator", "ADMIN"},
+    "document:review": {"Reviewer", "REVIEWER", "Legal Officer", "LEGAL_OFFICER", "Senior Officer", "Administrator", "ADMIN"},
+    "evidence:upload": {"Investigator", "INVESTIGATING_OFFICER", "Investigating Officer", "Senior Officer", "Forensic Officer", "Administrator", "ADMIN"},
+    "evidence:verify": {"Senior Officer", "Forensic Officer", "Auditor", "AUDITOR", "Administrator", "ADMIN"},
+    "integrity:verify": set(ALL_ROLES),
+    "analysis:view": {"Investigator", "INVESTIGATING_OFFICER", "Investigating Officer", "Senior Officer", "Forensic Officer", "Legal Officer", "LEGAL_OFFICER", "Administrator", "ADMIN"},
+    "audit:view": {"Auditor", "AUDITOR", "Administrator", "ADMIN"},
+    "users:manage": {"Administrator", "ADMIN"},
+    "security:configure": {"Administrator", "ADMIN"},
 }
 
 
@@ -81,7 +112,7 @@ class AuthenticationService:
         return valid
 
     @staticmethod
-    def provisioning_uri(user: User, issuer: str = "Investigative Intelligence") -> str:
+    def provisioning_uri(user: User, issuer: str = "Secure Document Management") -> str:
         label = quote(f"{issuer}:{user.username}")
         return f"otpauth://totp/{label}?secret={user.totp_secret}&issuer={quote(issuer)}&algorithm=SHA1&digits=6&period=30"
 
@@ -91,16 +122,49 @@ class AuthenticationService:
                 return User(record["username"], record["role"], record["password_hash"], record["totp_secret"], bool(record.get("mfa_enrolled", False)))
         return None
 
+    def all_users(self) -> list[User]:
+        return [
+            User(r["username"], r["role"], r["password_hash"], r.get("totp_secret", ""), bool(r.get("mfa_enrolled", False)))
+            for r in self._records()
+        ]
+
+    def has_permission(self, user: User | None, permission: str) -> bool:
+        if not user:
+            return False
+        return user.role in PERMISSIONS.get(permission, set())
+
     def require(self, user: User | None, permission: str) -> None:
-        if not user or user.role not in PERMISSIONS.get(permission, set()):
+        if not user or not self.has_permission(user, permission):
             self.audit.record(user.username if user else "anonymous", "PERMISSION_DENIED", permission, "Denied")
             raise AuthorizationError("You do not have permission for this operation.")
 
     def _ensure_users(self) -> None:
-        if self.path.exists(): return
-        # Fixed hashes permit local demo access without storing a plaintext password.
         password_hash = _hash_password(os.environ.get("II_DEMO_PASSWORD", "DemoPass!2026"))
-        records = [{"username": "demo_investigator", "role": "Investigator", "password_hash": password_hash, "totp_secret": _new_secret(), "mfa_enrolled": False}, {"username": "demo_forensic", "role": "Forensic Officer", "password_hash": password_hash, "totp_secret": _new_secret(), "mfa_enrolled": False}, {"username": "demo_admin", "role": "Administrator", "password_hash": password_hash, "totp_secret": _new_secret(), "mfa_enrolled": False}]
+        if self.path.exists():
+            records = self._records()
+            existing_usernames = {r.get("username") for r in records}
+            new_users = [
+                {"username": "demo_legal", "role": "Legal Officer", "password_hash": password_hash, "totp_secret": _new_secret(), "mfa_enrolled": True},
+                {"username": "demo_reviewer", "role": "Reviewer", "password_hash": password_hash, "totp_secret": _new_secret(), "mfa_enrolled": True},
+                {"username": "demo_auditor", "role": "Auditor", "password_hash": password_hash, "totp_secret": _new_secret(), "mfa_enrolled": True},
+            ]
+            added = False
+            for u in new_users:
+                if u["username"] not in existing_usernames:
+                    records.append(u)
+                    added = True
+            if added:
+                self._write(records)
+            return
+
+        records = [
+            {"username": "demo_investigator", "role": "Investigator", "password_hash": password_hash, "totp_secret": _new_secret(), "mfa_enrolled": False},
+            {"username": "demo_forensic", "role": "Forensic Officer", "password_hash": password_hash, "totp_secret": _new_secret(), "mfa_enrolled": False},
+            {"username": "demo_legal", "role": "Legal Officer", "password_hash": password_hash, "totp_secret": _new_secret(), "mfa_enrolled": True},
+            {"username": "demo_reviewer", "role": "Reviewer", "password_hash": password_hash, "totp_secret": _new_secret(), "mfa_enrolled": True},
+            {"username": "demo_auditor", "role": "Auditor", "password_hash": password_hash, "totp_secret": _new_secret(), "mfa_enrolled": True},
+            {"username": "demo_admin", "role": "Administrator", "password_hash": password_hash, "totp_secret": _new_secret(), "mfa_enrolled": False},
+        ]
         self._write(records)
 
     def _records(self) -> list[dict[str, Any]]:
