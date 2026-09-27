@@ -5,6 +5,7 @@ with PS 26189 Advanced Investigation Intelligence layer.
 
 from io import BytesIO
 from pathlib import Path
+import hashlib
 import json
 
 import pandas as pd
